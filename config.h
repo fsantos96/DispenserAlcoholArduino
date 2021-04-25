@@ -15,4 +15,4 @@ const int ONBOARD_LED = 2;
 const int minBombaSensor = 9;
 const int maxBombaSensor = 11;
 const int minBombaSensorPermitido= 10;
-const String idDispositivo= "abc123"
+const String idDispositivo= "abc123";

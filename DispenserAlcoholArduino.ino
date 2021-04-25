@@ -1,15 +1,12 @@
-
+#include "ESP32_MailClient.h"
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <UniversalTelegramBot.h>
 #include "config.h";
-#include <WiFiClientSecure.h>
-#include "ESP32_MailClient.h"
 
-SMTPData datosSMTP;
 WiFiClientSecure client;
+SMTPData datosSMTP;
 UniversalTelegramBot bot(BOTtoken, client);
-
 unsigned long lastTimeBotRan;
 int sensorBombaDuracion;
 int sensorBombaDistancia;
