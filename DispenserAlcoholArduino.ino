@@ -13,7 +13,7 @@ int sensorBombaDistancia;
 int sensorNivelDuracion;
 int sensorNivelDistancia;
 bool stockDisponible = true;
-bool armarActiva = false;
+bool alarmaActiva = false;
 
 void setup()
 {
@@ -56,6 +56,7 @@ void handleNewMessages(int numNewMessages) {
     String from_name = bot.messages[i].from_name;
     if (from_name == "") from_name = "Guest";
 
+    HTTPClient http;
     if (text == "/start") {
       String welcome = "Bienvenido, " + from_name + ".\n";
       welcome += "Ingrese /comenzar para registrar el inico de su turno. \n";
@@ -66,19 +67,32 @@ void handleNewMessages(int numNewMessages) {
     }
 
     if (text == "/comenzar") {
-      // mandar a la api que esta disponible
+      http.addHeader("Content-Type", "application/json");
+      http.begin(baseApi + "/employee/" + chat_id + "/" + idDispositivo + "/start");
+      int httpCode = http.POST("{\"employee\":{\"id\": \""+chat_id + "\", \"name\":\"" + from_name + "\", \"enamble\": \"true\"}");
+      bot.sendMessage(chat_id, "Que tengas una buena jornada " + from_name , "Markdown");
     }
 
     if (text == "/finalizar") {
-      // mandar a la api que no esta disponible
+      //http.addHeader("Content-Type", "application/json");
+      http.begin(baseApi + "/employee/" + chat_id + "/start");
+      int httpCode = http.POST();
+      bot.sendMessage(chat_id, "Que descanses! " + from_name , "Markdown");
     }
 
     if (text == "/reconocer") {
-      // mandar ack
+      http.begin(baseApi + "/employee/" + chat_id + "/" + idDispositivo + "/ack");
+      int httpCode = http.POST();
+      //obtener datos
+      // lista destinatarios
+      //bot.sendMessage(chat_id,  from_name + " reconocio la alerta" , "Markdown");
     }
 
     if (text == "/complatado") {
-      // mandar completado
+      http.begin(baseApi + "/employee/" + chat_id + "/" + idDispositivo + "/done");
+      int httpCode = http.POST();
+      armarActiva = false;
+      stockDisponible = true;
     }
   }
 }
@@ -104,14 +118,11 @@ void enviarCorreo(String asunto, String mensaje, String destinatario) {
 
 void notificarAlarmas() {
   Serial.println("Alarma");
-  if (!armarActiva) {
-    armarActiva = true;
-  }
-
   int alerta = 0;
+  
   int cantidadDestinatarios = 2;
   // HTTP para obtener la alerta
-  //alertData = api respuesta
+  //alerta = alertData.alarma
 
   switch (alerta) {
     case 1:
@@ -119,6 +130,7 @@ void notificarAlarmas() {
       while (cantidadDestinatarios) {
         cantidadDestinatarios = cantidadDestinatarios - 1;
         //  bot.sendMessage(alertData.destinatarios[cantidadDestinatarios].id, "El dispositivo " + idDispositivo + " necesita una recarga", "Markdown");
+        alarmaActiva = true;
       }
       break;
 
@@ -127,7 +139,6 @@ void notificarAlarmas() {
       while (cantidadDestinatarios) {
         cantidadDestinatarios = cantidadDestinatarios - 1;
         //  enviarCorreo("Nadie a Respondio a las alertas", "Se han registrado alertas pero nadie las ha reconocido", alertData.destinatarios[cantidadDestinatarios].email )
-        //  bot.sendMessage(alertData.destinatarios[cantidadDestinatarios].id, "El dispositivo " + idDispositivo + " necesita una recarga", "Markdown");
       }
     break;
 
@@ -135,8 +146,7 @@ void notificarAlarmas() {
       // la alerta ya fue reconociada pero no resulta
       while (cantidadDestinatarios) {
         cantidadDestinatarios = cantidadDestinatarios - 1;
-        //  enviarCorreo("Nadie a Respondio a las alertas", "Se han registrado alertas pero nadie las ha reconocido", alertData.destinatarios[cantidadDestinatarios].email )
-        //  bot.sendMessage(alertData.destinatarios[cantidadDestinatarios].id, "El dispositivo " + idDispositivo + " necesita una recarga", "Markdown");
+        //  enviarCorreo("El dispositivo no se cargo", alertData.employeeACK + " reconocio la alerta pero aun no realizo el cambio", alertData.destinatarios[cantidadDestinatarios].email )
       }
     break;
   }
