@@ -68,32 +68,41 @@ void handleNewMessages(int numNewMessages) {
 
     if (text == "/comenzar") {
       http.addHeader("Content-Type", "application/json");
-      http.begin(baseApi + "/employee/" + chat_id + "/" + idDispositivo + "/start");
-      int httpCode = http.POST("{\"employee\":{\"id\": \""+chat_id + "\", \"name\":\"" + from_name + "\", \"enamble\": \"true\"}");
+      http.begin(baseApi + "/employee/start?employeeId=" + chat_id + "&deviceId=" + idDispositivo);
+      int httpCode = http.POST("{\"employee\":{\"id\": \""+chat_id + "\", \"name\":\"" + from_name + "\", \"enabled\": \"true\"}");
       bot.sendMessage(chat_id, "Que tengas una buena jornada " + from_name , "Markdown");
     }
 
     if (text == "/finalizar") {
-      //http.addHeader("Content-Type", "application/json");
-      http.begin(baseApi + "/employee/" + chat_id + "/start");
-      int httpCode = http.POST();
+      http.addHeader("Content-Type", "application/json");
+      http.begin(baseApi + "/employee/end?employeeId=" + chat_id);
+      int httpCode = http.POST("{}");
       bot.sendMessage(chat_id, "Que descanses! " + from_name , "Markdown");
     }
 
     if (text == "/reconocer") {
-      http.begin(baseApi + "/employee/" + chat_id + "/" + idDispositivo + "/ack");
-      int httpCode = http.POST();
-      //obtener datos
-      // lista destinatarios
-      //bot.sendMessage(chat_id,  from_name + " reconocio la alerta" , "Markdown");
+      http.begin(baseApi + "/employee/list");
+      int httpCode = http.GET();
+      http.end();
+      // obtener el json con los usuarios
+      // armo la lista
+      //http.addHeader("Content-Type", "application/json");
+      http.begin(baseApi + "/employee/ack?employeeId="+ chat_id + "&deviceId="+ idDispositivo);
+      //httpCode = http.POST();
+      httpCode = http.GET();
+      // recorro la lista para avisar el ack
+      //bot.sendMessage(chat_id,  from_name + " reconocio la alerta de" + idDispositivo , "Markdown");
     }
-
+    
     if (text == "/complatado") {
-      http.begin(baseApi + "/employee/" + chat_id + "/" + idDispositivo + "/done");
-      int httpCode = http.POST();
-      armarActiva = false;
+      http.addHeader("Content-Type", "application/json");
+      http.begin(baseApi + "/employee/done?employeeId="+ chat_id + "&deviceId="+ idDispositivo);
+      int httpCode = http.POST("{}");
+      alarmaActiva = false;
       stockDisponible = true;
     }
+
+    http.end();
   }
 }
 
