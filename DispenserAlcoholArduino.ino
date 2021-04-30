@@ -130,8 +130,12 @@ void notificarAlarmas() {
   int alerta = 0;
   
   int cantidadDestinatarios = 2;
-  // HTTP para obtener la alerta
-  //alerta = alertData.alarma
+  HTTPClient http;
+
+  http.begin(baseApi + "/employee/alert/?alarmaActiva="+ alarmaActiva + "&deviceId="+ idDispositivo);
+  int httpCode = http.GET();
+  
+  //Tomas el JSON y setear la alarma y destinatarios
 
   switch (alerta) {
     case 1:
