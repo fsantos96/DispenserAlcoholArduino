@@ -14,6 +14,7 @@ int sensorNivelDuracion;
 int sensorNivelDistancia;
 bool stockDisponible = true;
 bool alarmaActiva = false;
+int cantidadDeDestinatarios = 0;
 
 void setup()
 {
@@ -62,14 +63,14 @@ void handleNewMessages(int numNewMessages) {
       welcome += "Ingrese /comenzar para registrar el inico de su turno. \n";
       welcome += "Ingrese /finalizar para registrar el fin de su turno. \n";
       welcome += "Ingrese /reconocer para registrar que ha visualizado una alerta. \n";
-      welcome += "Ingrese /complatado para registrar que ha completado el cambio. \n";
+      welcome += "Ingrese /completado para registrar que ha completado el cambio. \n";
       bot.sendMessage(chat_id, welcome, "Markdown");
     }
 
     if (text == "/comenzar") {
-      http.addHeader("Content-Type", "application/json");
       http.begin(baseApi + "/employee/start?employeeId=" + chat_id + "&deviceId=" + idDispositivo);
-      int httpCode = http.POST("{\"employee\":{\"id\": \""+chat_id + "\", \"name\":\"" + from_name + "\", \"enabled\": \"true\"}");
+      http.addHeader("Content-Type", "application/json");
+      int httpCode = http.POST("{\"employee\":{\"id\": \""+chat_id + "\", \"name\":\"" + from_name + "\", \"enabled\": \"true\"}}");
       bot.sendMessage(chat_id, "Que tengas una buena jornada " + from_name , "Markdown");
     }
 
@@ -81,23 +82,46 @@ void handleNewMessages(int numNewMessages) {
     }
 
     if (text == "/reconocer") {
-      http.begin(baseApi + "/employee/list");
-      int httpCode = http.GET();
-      http.end();
-      // obtener el json con los usuarios
-      // armo la lista
-      //http.addHeader("Content-Type", "application/json");
       http.begin(baseApi + "/employee/ack?employeeId="+ chat_id + "&deviceId="+ idDispositivo);
       //httpCode = http.POST();
-      httpCode = http.GET();
-      // recorro la lista para avisar el ack
-      //bot.sendMessage(chat_id,  from_name + " reconocio la alerta de" + idDispositivo , "Markdown");
+      int httpCode = http.GET();
+      Serial.println("http");
+      Serial.println(httpCode);
+
+      DynamicJsonDocument doc(8024);
+      DeserializationError error = deserializeJson(doc, http.getStream());
+      if (error) {
+        Serial.print(F("deserializeJson() reconocer: "));
+        Serial.println(error.f_str());
+      }
+
+      cantidadDeDestinatarios = doc["amountEmployee"];
+      Serial.println(cantidadDeDestinatarios);
+      for(int i = 0; i < cantidadDeDestinatarios; i++) {   
+        String idEmpleadoChat = doc["employees"][i]["id"].as<String>();
+        bot.sendMessage(idEmpleadoChat,  from_name + " reconocio la alerta de " + idDispositivo , "Markdown"); 
+      }
     }
     
-    if (text == "/complatado") {
+    if (text == "/completado") {
       http.addHeader("Content-Type", "application/json");
       http.begin(baseApi + "/employee/done?employeeId="+ chat_id + "&deviceId="+ idDispositivo);
       int httpCode = http.POST("{}");
+      
+      DynamicJsonDocument doc(8024);
+      DeserializationError error = deserializeJson(doc, http.getStream());
+      if (error) {
+        Serial.print(F("deserializeJson() reconocer: "));
+        Serial.println(error.f_str());
+      }
+
+      cantidadDeDestinatarios = doc["amountEmployee"];
+
+      for(int i = 0; i < cantidadDeDestinatarios; i++) {   
+        String idEmpleadoChat = doc["employees"][i]["id"].as<String>();
+        bot.sendMessage(idEmpleadoChat,  from_name + " completo la recarga de " + idDispositivo , "Markdown"); 
+      }
+
       alarmaActiva = false;
       stockDisponible = true;
     }
@@ -111,16 +135,18 @@ void enviarCorreo(String asunto, String mensaje, String destinatario) {
   datosSMTP.setLogin("smtp.gmail.com", 465, "federico.santos@davinci.edu.ar", "Tatifede21092");
   // Remitente
   datosSMTP.setSender("ESP32S", "fede@gmail.com");
+  //Armando del mail
   datosSMTP.setPriority("High");
   datosSMTP.setSubject(asunto);
   datosSMTP.setMessage(mensaje, false);
   // destinatarios
   datosSMTP.addRecipient(destinatario);
   
-
   //Comience a enviar correo electrónico.
-  if (!MailClient.sendMail(datosSMTP))
-    Serial.println("Error enviando el correo, " + MailClient.smtpErrorReason());
+  if (!MailClient.sendMail(datosSMTP)) {
+   Serial.println("Error enviando el correo, " + MailClient.smtpErrorReason()); 
+  }
+  
   //Borrar todos los datos del objeto datosSMTP para liberar memoria
   datosSMTP.empty();
 }
@@ -128,41 +154,42 @@ void enviarCorreo(String asunto, String mensaje, String destinatario) {
 void notificarAlarmas() {
   Serial.println("Alarma");
   int alerta = 0;
-  
-  int cantidadDestinatarios = 2;
   HTTPClient http;
 
   http.begin(baseApi + "/employee/alert/?alarmaActiva="+ alarmaActiva + "&deviceId="+ idDispositivo);
   int httpCode = http.GET();
   
-  //Tomas el JSON y setear la alarma y destinatarios
+  DynamicJsonDocument doc(1024);
+  DeserializationError error = deserializeJson(doc, http.getStream());
+  if (error) {
+    Serial.print(F("deserializeJson() reconocer: "));
+    Serial.println(error.f_str());
+  }
 
+  cantidadDeDestinatarios = doc["amountManagers"];
+  alerta = doc["alert"];
   switch (alerta) {
     case 1:
-      // se detecta una alerta por primera vez
-      while (cantidadDestinatarios) {
-        cantidadDestinatarios = cantidadDestinatarios - 1;
-        //  bot.sendMessage(alertData.destinatarios[cantidadDestinatarios].id, "El dispositivo " + idDispositivo + " necesita una recarga", "Markdown");
-        alarmaActiva = true;
+      for(int i = 0; i < cantidadDeDestinatarios; i++) {
+         bot.sendMessage(doc["managers"][i]["id"].as<String>(), "El dispositivo " + idDispositivo + " necesita ser recargado" , "Markdown");
       }
-      break;
 
+      alarmaActiva = true;
+      break;
     case 2:
-      // la alerta ya fue notificada pero nadie la reconocio
-      while (cantidadDestinatarios) {
-        cantidadDestinatarios = cantidadDestinatarios - 1;
-        //  enviarCorreo("Nadie a Respondio a las alertas", "Se han registrado alertas pero nadie las ha reconocido", alertData.destinatarios[cantidadDestinatarios].email )
+      for(int i = 0; i < cantidadDeDestinatarios; i++) {
+       enviarCorreo("Nadie a Respondio a las alertas", "Se han registrado alertas en el dispositivo " + idDispositivo + " pero nadie las ha reconocido", doc["managers"][i]["email"].as<String>() );
       }
     break;
 
     case 3:
-      // la alerta ya fue reconociada pero no resulta
-      while (cantidadDestinatarios) {
-        cantidadDestinatarios = cantidadDestinatarios - 1;
-        //  enviarCorreo("El dispositivo no se cargo", alertData.employeeACK + " reconocio la alerta pero aun no realizo el cambio", alertData.destinatarios[cantidadDestinatarios].email )
+      for(int i = 0; i < cantidadDeDestinatarios; i++) {
+       enviarCorreo("La alerta no fue resuelta", doc["employeeACK"].as<String>() + " reconocio la alerta del dispositivo pero no efectuo el cambio", doc["managers"][i]["email"].as<String>());
       }
     break;
   }
+
+  http.end();
 }
 
 int convertirCM(int medida) {
@@ -183,44 +210,44 @@ void loop()
     lastTimeBotRan = millis();
   }
 
-  // ultrasonido de bomba
-  digitalWrite(ONBOARD_LED, LOW);
-  digitalWrite(sensorBombaTrig, HIGH);
-  delay(1);
-  digitalWrite(sensorBombaTrig, LOW);
-
-  sensorBombaDuracion = pulseIn(sensorBombaEcho, HIGH);
-  sensorBombaDistancia = convertirCM(sensorBombaDuracion);
-
-  //ultrasonido de nivel
-  digitalWrite(sensorNivelTrig, HIGH);
-  delay(1);
-  digitalWrite(sensorNivelTrig, LOW);
-
-  sensorNivelDuracion = pulseIn(sensorNivelEcho, HIGH);
-  sensorNivelDistancia = convertirCM(sensorNivelDuracion);
-
-  Serial.println(sensorNivelDistancia);
-
-  if (sensorNivelDistancia < minBombaSensorPermitido) {
-    stockDisponible = false;
-  } else {
-    stockDisponible = true;
-  }
-
-  if ((sensorBombaDistancia >= minBombaSensor || sensorBombaDistancia < maxBombaSensor) && stockDisponible ) {
-    digitalWrite(ONBOARD_LED, HIGH);
-    digitalWrite(pinMoffet, LOW);
-
-  } else {
-    digitalWrite(ONBOARD_LED, LOW);
-    digitalWrite(pinMoffet, HIGH);
-  }
-
-  // valdamos nivel
-  if (stockDisponible && sensorNivelDistancia < 10) {
-    notificarAlarmas();
-  }
-
-  delay(3000);
+//  // ultrasonido de bomba
+//  digitalWrite(ONBOARD_LED, LOW);
+//  digitalWrite(sensorBombaTrig, HIGH);
+//  delay(1);
+//  digitalWrite(sensorBombaTrig, LOW);
+//
+//  sensorBombaDuracion = pulseIn(sensorBombaEcho, HIGH);
+//  sensorBombaDistancia = convertirCM(sensorBombaDuracion);
+//
+//  //ultrasonido de nivel
+//  digitalWrite(sensorNivelTrig, HIGH);
+//  delay(1);
+//  digitalWrite(sensorNivelTrig, LOW);
+//
+//  sensorNivelDuracion = pulseIn(sensorNivelEcho, HIGH);
+//  sensorNivelDistancia = convertirCM(sensorNivelDuracion);
+//
+//  Serial.println(sensorNivelDistancia);
+//
+//  if (sensorNivelDistancia < minBombaSensorPermitido) {
+//    stockDisponible = false;
+//  } else {
+//    stockDisponible = true;
+//  }
+//
+//  if ((sensorBombaDistancia >= minBombaSensor || sensorBombaDistancia < maxBombaSensor) && stockDisponible ) {
+//    digitalWrite(ONBOARD_LED, HIGH);
+//    digitalWrite(pinMoffet, LOW);
+//
+//  } else {
+//    digitalWrite(ONBOARD_LED, LOW);
+//    digitalWrite(pinMoffet, HIGH);
+//  }
+//
+//  // valdamos nivel
+//  if (stockDisponible && sensorNivelDistancia < 10) {
+      notificarAlarmas();  
+//  }
+//
+//  delay(3000);
 }
